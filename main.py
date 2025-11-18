@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
-import numpy as np   # <-- pour l'animation
 
 # ================================
 # CONFIGURATION
@@ -85,12 +84,6 @@ if 'selected_flight' not in st.session_state:
     st.session_state.selected_flight = None
 if 'flight_history' not in st.session_state:
     st.session_state.flight_history = []
-
-# animation d’intro
-if 'intro_animation_done' not in st.session_state:
-    st.session_state.intro_animation_done = False
-if 'anim_frame' not in st.session_state:
-    st.session_state.anim_frame = 0
 
 # ================================
 # FONCTIONS D'AUTHENTIFICATION
@@ -282,9 +275,6 @@ with st.sidebar:
         refresh_interval = st.slider("Intervalle (sec)", 15, 120, 30)
     
     if st.button("🔄 Rafraîchir maintenant", use_container_width=True):
-        # on relance aussi l’animation quand on force un refresh
-        st.session_state.intro_animation_done = False
-        st.session_state.anim_frame = 0
         st.rerun()
     
     st.divider()
@@ -390,41 +380,16 @@ with tab1:
     st.subheader("🗺️ Carte des vols en temps réel")
     
     if not filtered_df.empty:
-        # ------------------------
-        # Animation d'intro fun
-        # ------------------------
-        use_animation = (not st.session_state.intro_animation_done) and (st.session_state.anim_frame < 15)
-
-        if use_animation:
-            # on crée une copie "animée" avec un petit jitter aléatoire
-            anim_df = filtered_df.copy()
-            
-            # amplitude du mouvement (diminue au fil des frames)
-            base_delta = 5.0   # degrés max au début
-            factor = (15 - st.session_state.anim_frame) / 15  # diminue vers 0
-            delta = base_delta * factor
-
-            np.random.seed(st.session_state.anim_frame)
-            anim_df['lat_anim'] = anim_df['lat'] + (np.random.rand(len(anim_df)) - 0.5) * 2 * delta
-            anim_df['lon_anim'] = anim_df['lon'] + (np.random.rand(len(anim_df)) - 0.5) * 2 * delta
-
-            plot_df = anim_df
-            lat_col = 'lat_anim'
-            lon_col = 'lon_anim'
-        else:
-            plot_df = filtered_df
-            lat_col = 'lat'
-            lon_col = 'lon'
-
         # Créer la carte avec Plotly
         fig = go.Figure()
         
-        for status in plot_df['status'].unique():
-            df_status = plot_df[plot_df['status'] == status]
+        # Ajouter les vols
+        for status in filtered_df['status'].unique():
+            df_status = filtered_df[filtered_df['status'] == status]
             
             fig.add_trace(go.Scattergeo(
-                lon=df_status[lon_col],
-                lat=df_status[lat_col],
+                lon=df_status['lon'],
+                lat=df_status['lat'],
                 text=df_status.apply(lambda row: 
                     f"<b>{row['callsign']}</b><br>" +
                     f"Pays: {row['origin_country']}<br>" +
@@ -433,15 +398,12 @@ with tab1:
                     f"Direction: {row['heading']}<br>" +
                     f"Statut: {row['status']}", axis=1
                 ),
-                mode='markers+text',
-                textposition="top center",
-                textfont=dict(size=9),
+                mode='markers',
                 name=status,
                 marker=dict(
                     size=8,
-                    opacity=0.85,
-                    line=dict(width=1, color='white'),
-                    symbol='triangle-up'  # effet "avion" stylisé
+                    opacity=0.8,
+                    line=dict(width=1, color='white')
                 ),
                 hovertemplate='%{text}<extra></extra>'
             ))
@@ -464,14 +426,6 @@ with tab1:
         )
         
         st.plotly_chart(fig, use_container_width=True)
-
-        # si on est en mode animation, on avance la frame et on relance
-        if use_animation:
-            st.session_state.anim_frame += 1
-            if st.session_state.anim_frame >= 15:
-                st.session_state.intro_animation_done = True
-            time.sleep(0.15)
-            st.experimental_rerun()
     else:
         st.info("Aucun vol ne correspond aux filtres sélectionnés")
 
@@ -482,6 +436,7 @@ with tab2:
     col1, col2 = st.columns(2)
     
     with col1:
+        # Distribution des altitudes
         st.markdown("#### 📏 Distribution des altitudes")
         fig_alt = px.histogram(
             filtered_df,
@@ -495,6 +450,7 @@ with tab2:
         st.plotly_chart(fig_alt, use_container_width=True)
     
     with col2:
+        # Distribution des vitesses
         st.markdown("#### ⚡ Distribution des vitesses")
         fig_speed = px.histogram(
             filtered_df,
@@ -510,6 +466,7 @@ with tab2:
     col3, col4 = st.columns(2)
     
     with col3:
+        # Top pays
         st.markdown("#### 🌍 Top 10 pays")
         country_counts = filtered_df['origin_country'].value_counts().head(10)
         fig_countries = px.bar(
@@ -525,6 +482,7 @@ with tab2:
         st.plotly_chart(fig_countries, use_container_width=True)
     
     with col4:
+        # Statut des vols
         st.markdown("#### 📊 Statut des vols")
         status_counts = filtered_df['status'].value_counts()
         fig_status = px.pie(
@@ -536,6 +494,7 @@ with tab2:
         fig_status.update_layout(height=400)
         st.plotly_chart(fig_status, use_container_width=True)
     
+    # Heatmap altitude vs vitesse
     st.markdown("#### 🔥 Heatmap Altitude vs Vitesse")
     fig_heatmap = px.density_heatmap(
         filtered_df,
@@ -554,6 +513,7 @@ with tab2:
 with tab3:
     st.subheader("📋 Liste détaillée des vols")
     
+    # Options d'affichage
     col1, col2, col3 = st.columns(3)
     with col1:
         sort_by = st.selectbox("Trier par", [
@@ -571,9 +531,11 @@ with tab3:
     with col3:
         rows_per_page = st.selectbox("Lignes par page", [10, 25, 50, 100])
     
+    # Tri
     ascending = sort_order == 'Croissant'
     display_df = filtered_df.sort_values(sort_by, ascending=ascending).reset_index(drop=True)
     
+    # Affichage paginé
     st.dataframe(
         display_df[[
             'callsign', 'origin_country', 'status', 'geo_altitude_ft',
@@ -606,6 +568,7 @@ with tab3:
         height=600
     )
     
+    # Export CSV
     csv = display_df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Télécharger CSV",
@@ -618,6 +581,7 @@ with tab3:
 with tab4:
     st.subheader("🔍 Recherche et détails d'un vol")
     
+    # Recherche
     search_callsign = st.text_input("🔎 Rechercher par indicatif (ex: AFR447)", "")
     
     if search_callsign:
@@ -653,6 +617,7 @@ with tab4:
                         st.write(f"Taux vertical: {flight['vertical_rate_fpm']:.0f} fpm" if pd.notna(flight['vertical_rate']) else "N/A")
                         st.write(f"Statut: {flight['status']}")
                     
+                    # Mini carte
                     st.markdown("**🗺️ Position sur la carte**")
                     flight_map = pd.DataFrame({
                         'lat': [flight['lat']],
@@ -664,6 +629,7 @@ with tab4:
     else:
         st.info("👆 Entrez un indicatif de vol pour afficher les détails")
         
+        # Afficher quelques exemples
         st.markdown("**Exemples de vols actifs:**")
         sample_flights = filtered_df.head(5)
         for idx, flight in sample_flights.iterrows():
@@ -716,6 +682,7 @@ with tab5:
     with col2:
         st.markdown("### 🏆 Records")
         
+        # Vol le plus rapide
         fastest = filtered_df.loc[filtered_df['velocity_knots'].idxmax()]
         st.markdown(f"""
         <div class="stat-box">
@@ -726,6 +693,7 @@ with tab5:
         </div>
         """, unsafe_allow_html=True)
         
+        # Vol le plus haut
         highest = filtered_df.loc[filtered_df['geo_altitude_ft'].idxmax()]
         st.markdown(f"""
         <div class="stat-box">
@@ -736,10 +704,12 @@ with tab5:
         </div>
         """, unsafe_allow_html=True)
     
+    # Graphique temporel
     st.markdown("### 📈 Tendances")
     
+    # Distribution par quadrant géographique
     filtered_df['quadrant'] = filtered_df.apply(lambda row: 
-        f"{'N' if row['lat'] > 0 else 'S'}{'E' if row['lon'] > 0 else 'W'}", axis=1
+        f"{'N' if row['lat'] > 0 else 'S'}{' ' if row['lon'] > 0 else ' W'}", axis=1
     )
     
     quadrant_counts = filtered_df['quadrant'].value_counts()
@@ -759,6 +729,7 @@ with tab5:
         st.plotly_chart(fig_quad, use_container_width=True)
     
     with col2:
+        # Direction des vols
         heading_counts = filtered_df['heading'].value_counts()
         fig_heading = px.bar_polar(
             r=heading_counts.values,
@@ -770,6 +741,7 @@ with tab5:
         fig_heading.update_layout(height=400)
         st.plotly_chart(fig_heading, use_container_width=True)
     
+    # Matrice de corrélation
     st.markdown("### 🔬 Analyse de corrélation")
     
     numeric_cols = ['velocity_knots', 'geo_altitude_ft', 'vertical_rate', 'true_track']
@@ -785,6 +757,7 @@ with tab5:
     fig_corr.update_layout(height=400)
     st.plotly_chart(fig_corr, use_container_width=True)
     
+    # Box plots comparatifs
     st.markdown("### 📦 Comparaisons par statut de vol")
     
     col1, col2 = st.columns(2)
