@@ -1,5 +1,7 @@
 S'inspirer : https://snow-flake-cheat-sheet.streamlit.app
 
--Creer un logo sur Figma stylé beau et l'ajotuer en haut au centre. (s'inspirer du premier lien)
+-Creer un logo sur Figma stylé beau et l'ajouter en haut au centre. (s'inspirer du premier lien)
 -Rajouter des icones d'avions qui tombent comme dans la premier lien
 -Ameliorer le style
+-analyse explicative (?)
+-filtrage par type d'avions
