@@ -140,7 +140,6 @@ You can add screenshots here, such as:
 **Aness Rabia**
 
 **Georgios Stephanou**
-📍 Montpellier, France
 
 
 
