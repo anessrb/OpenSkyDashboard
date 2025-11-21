@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
+import folium
+from streamlit_folium import st_folium
+import base64
 
 # ================================
 # CONFIGURATION
@@ -40,7 +43,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Style CSS moderne
+# Style CSS moderne avec animations d'avions
 st.markdown("""
 <style>
     .main-header {
@@ -50,6 +53,8 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
     }
     .metric-card {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -64,7 +69,78 @@ st.markdown("""
         border-left: 4px solid #667eea;
         margin: 0.5rem 0;
     }
+
+    /* Animations d'avions volants */
+    @keyframes fly1 {
+        0% { transform: translate(-100px, 0) rotate(45deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translate(calc(100vw + 100px), -200px) rotate(45deg); opacity: 0; }
+    }
+    @keyframes fly2 {
+        0% { transform: translate(-100px, 50px) rotate(-30deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translate(calc(100vw + 100px), -100px) rotate(-30deg); opacity: 0; }
+    }
+    @keyframes fly3 {
+        0% { transform: translate(100vw, 0) rotate(-135deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translate(-100px, 150px) rotate(-135deg); opacity: 0; }
+    }
+    @keyframes fly4 {
+        0% { transform: translate(-100px, -50px) rotate(60deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translate(calc(100vw + 100px), 100px) rotate(60deg); opacity: 0; }
+    }
+    @keyframes fly5 {
+        0% { transform: translate(100vw, 100px) rotate(-120deg); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translate(-100px, -50px) rotate(-120deg); opacity: 0; }
+    }
+
+    .airplane {
+        position: fixed;
+        font-size: 24px;
+        pointer-events: none;
+        z-index: 1000;
+    }
+    .airplane1 {
+        animation: fly1 15s linear infinite;
+        top: 10%;
+        color: #FFD700;
+    }
+    .airplane2 {
+        animation: fly2 18s linear infinite 3s;
+        top: 30%;
+        color: #FF0000;
+    }
+    .airplane3 {
+        animation: fly3 20s linear infinite 6s;
+        top: 50%;
+        color: #0000FF;
+    }
+    .airplane4 {
+        animation: fly4 16s linear infinite 9s;
+        top: 20%;
+        color: #00FF00;
+    }
+    .airplane5 {
+        animation: fly5 22s linear infinite 12s;
+        top: 70%;
+        color: #FF69B4;
+    }
 </style>
+
+<!-- Avions animés -->
+<div class="airplane airplane1">✈</div>
+<div class="airplane airplane2">✈</div>
+<div class="airplane airplane3">✈</div>
+<div class="airplane airplane4">✈</div>
+<div class="airplane airplane5">✈</div>
 """, unsafe_allow_html=True)
 
 # ================================
@@ -378,54 +454,84 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ============ ONGLET 1: CARTE ============
 with tab1:
     st.subheader("🗺️ Carte des vols en temps réel")
-    
+
     if not filtered_df.empty:
-        # Créer la carte avec Plotly
-        fig = go.Figure()
-        
-        # Ajouter les vols
-        for status in filtered_df['status'].unique():
-            df_status = filtered_df[filtered_df['status'] == status]
-            
-            fig.add_trace(go.Scattergeo(
-                lon=df_status['lon'],
-                lat=df_status['lat'],
-                text=df_status.apply(lambda row: 
-                    f"<b>{row['callsign']}</b><br>" +
-                    f"Pays: {row['origin_country']}<br>" +
-                    f"Altitude: {row['geo_altitude_ft']:.0f} ft<br>" +
-                    f"Vitesse: {row['velocity_knots']:.0f} kts<br>" +
-                    f"Direction: {row['heading']}<br>" +
-                    f"Statut: {row['status']}", axis=1
-                ),
-                mode='markers',
-                name=status,
-                marker=dict(
-                    size=8,
-                    opacity=0.8,
-                    line=dict(width=1, color='white')
-                ),
-                hovertemplate='%{text}<extra></extra>'
-            ))
-        
-        fig.update_geos(
-            projection_type="natural earth",
-            showland=True,
-            landcolor="rgb(243, 243, 243)",
-            coastlinecolor="rgb(204, 204, 204)",
-            showocean=True,
-            oceancolor="rgb(230, 245, 255)",
-            showcountries=True,
-            countrycolor="rgb(204, 204, 204)"
+        # Définir les couleurs par statut
+        status_colors = {
+            '🛫 Montée': '#FFD700',     # Jaune
+            '🛬 Descente': '#FF0000',   # Rouge
+            '✈️ Croisière': '#0000FF',  # Bleu
+            '🛬 Au sol': '#808080'      # Gris
+        }
+
+        # Calculer le centre de la carte
+        center_lat = filtered_df['lat'].mean()
+        center_lon = filtered_df['lon'].mean()
+
+        # Calculer le zoom basé sur la bbox
+        lat_range = bbox[1] - bbox[0]
+        lon_range = bbox[3] - bbox[2]
+        max_range = max(lat_range, lon_range)
+
+        # Formule pour convertir la plage en niveau de zoom Folium
+        if max_range > 100:
+            zoom_level = 2
+        elif max_range > 50:
+            zoom_level = 3
+        elif max_range > 20:
+            zoom_level = 4
+        elif max_range > 10:
+            zoom_level = 5
+        else:
+            zoom_level = 7
+
+        # Créer la carte Folium (beaucoup plus rapide avec icônes personnalisées)
+        m = folium.Map(
+            location=[center_lat, center_lon],
+            zoom_start=zoom_level,
+            tiles='OpenStreetMap',
+            prefer_canvas=True
         )
-        
-        fig.update_layout(
-            height=600,
-            margin={"r":0,"t":30,"l":0,"b":0},
-            title=f"📍 {len(filtered_df)} vols actifs dans {selected_region}"
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+
+        # Lire et encoder le SVG
+        with open('2081280.svg', 'r') as f:
+            svg_content = f.read()
+
+        # Ajouter chaque avion comme marqueur avec icône SVG
+        for _, row in filtered_df.iterrows():
+            # Modifier la couleur du SVG selon le statut
+            color = status_colors.get(row['status'], '#0000FF')
+            svg_colored = svg_content.replace('fill="#000000"', f'fill="{color}"')
+
+            # Encoder en base64
+            svg_b64 = base64.b64encode(svg_colored.encode()).decode()
+
+            # Créer l'icône personnalisée
+            icon_html = f'''
+            <div style="transform: rotate({row["true_track"] if pd.notna(row["true_track"]) else 0}deg);">
+                <img src="data:image/svg+xml;base64,{svg_b64}" width="20" height="20">
+            </div>
+            '''
+
+            # Popup avec infos du vol
+            popup_text = f"""
+            <b>{row['callsign']}</b><br>
+            Pays: {row['origin_country']}<br>
+            Altitude: {row['geo_altitude_ft']:.0f} ft<br>
+            Vitesse: {row['velocity_knots']:.0f} kts<br>
+            Cap: {row['heading']}<br>
+            Statut: {row['status']}
+            """
+
+            folium.Marker(
+                location=[row['lat'], row['lon']],
+                popup=folium.Popup(popup_text, max_width=300),
+                icon=folium.DivIcon(html=icon_html)
+            ).add_to(m)
+
+        # Afficher la carte dans Streamlit
+        st_folium(m, width=None, height=700, key="flight_map")
+
     else:
         st.info("Aucun vol ne correspond aux filtres sélectionnés")
 
