@@ -544,7 +544,14 @@ with tab1:
             mapbox=dict(
                 style="open-street-map",
                 center=dict(lat=center_lat, lon=center_lon),
-                zoom=zoom_level
+                zoom=zoom_level,
+                # Limiter l'affichage à une seule instance du monde
+                bounds=dict(
+                    west=-180,
+                    east=180,
+                    south=-85,
+                    north=85
+                )
             ),
             height=700,
             margin={"r":0,"t":0,"l":0,"b":0},
