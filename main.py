@@ -43,29 +43,130 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Style CSS moderne
+# Style CSS moderne minimaliste bleu clair et blanc
 st.markdown("""
 <style>
+    /* Fond principal */
+    .stApp {
+        background: linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%);
+    }
+
+    /* Header principal */
     .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        padding: 2.5rem;
+        border-radius: 16px;
         color: white;
         text-align: center;
         margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(59, 130, 246, 0.2);
     }
+
+    /* Cartes de métriques */
     .metric-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e0f2fe;
     }
+
+    /* Boîtes de statistiques */
     .stat-box {
         background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #667eea;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #3b82f6;
         margin: 0.5rem 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(to bottom, #ffffff 0%, #f0f9ff 100%);
+    }
+
+    /* Titres */
+    h1, h2, h3 {
+        color: #1e40af;
+        font-weight: 600;
+    }
+
+    /* Métriques Streamlit */
+    [data-testid="stMetricValue"] {
+        color: #1e40af;
+        font-size: 2rem;
+        font-weight: 600;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #64748b;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    /* Boutons */
+    .stButton > button {
+        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .stButton > button:hover {
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+        transform: translateY(-2px);
+    }
+
+    /* Selectbox et inputs */
+    .stSelectbox, .stNumberInput, .stSlider {
+        background: white;
+        border-radius: 8px;
+    }
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: white;
+        border-radius: 12px;
+        padding: 0.5rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 8px;
+        color: #64748b;
+        font-weight: 500;
+        padding: 0.75rem 1.5rem;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        color: white;
+    }
+
+    /* Dividers */
+    hr {
+        border-color: #e0f2fe;
+        margin: 2rem 0;
+    }
+
+    /* Dataframes */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e0f2fe;
     }
 </style>
 """, unsafe_allow_html=True)
