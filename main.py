@@ -43,7 +43,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Style CSS moderne avec animations d'avions
+# Style CSS moderne
 st.markdown("""
 <style>
     .main-header {
@@ -53,8 +53,6 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 2rem;
-        position: relative;
-        overflow: hidden;
     }
     .metric-card {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -69,78 +67,7 @@ st.markdown("""
         border-left: 4px solid #667eea;
         margin: 0.5rem 0;
     }
-
-    /* Animations d'avions volants */
-    @keyframes fly1 {
-        0% { transform: translate(-100px, 0) rotate(45deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translate(calc(100vw + 100px), -200px) rotate(45deg); opacity: 0; }
-    }
-    @keyframes fly2 {
-        0% { transform: translate(-100px, 50px) rotate(-30deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translate(calc(100vw + 100px), -100px) rotate(-30deg); opacity: 0; }
-    }
-    @keyframes fly3 {
-        0% { transform: translate(100vw, 0) rotate(-135deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translate(-100px, 150px) rotate(-135deg); opacity: 0; }
-    }
-    @keyframes fly4 {
-        0% { transform: translate(-100px, -50px) rotate(60deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translate(calc(100vw + 100px), 100px) rotate(60deg); opacity: 0; }
-    }
-    @keyframes fly5 {
-        0% { transform: translate(100vw, 100px) rotate(-120deg); opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { transform: translate(-100px, -50px) rotate(-120deg); opacity: 0; }
-    }
-
-    .airplane {
-        position: fixed;
-        font-size: 24px;
-        pointer-events: none;
-        z-index: 1000;
-    }
-    .airplane1 {
-        animation: fly1 15s linear infinite;
-        top: 10%;
-        color: #FFD700;
-    }
-    .airplane2 {
-        animation: fly2 18s linear infinite 3s;
-        top: 30%;
-        color: #FF0000;
-    }
-    .airplane3 {
-        animation: fly3 20s linear infinite 6s;
-        top: 50%;
-        color: #0000FF;
-    }
-    .airplane4 {
-        animation: fly4 16s linear infinite 9s;
-        top: 20%;
-        color: #00FF00;
-    }
-    .airplane5 {
-        animation: fly5 22s linear infinite 12s;
-        top: 70%;
-        color: #FF69B4;
-    }
 </style>
-
-<!-- Avions animés -->
-<div class="airplane airplane1">✈</div>
-<div class="airplane airplane2">✈</div>
-<div class="airplane airplane3">✈</div>
-<div class="airplane airplane4">✈</div>
-<div class="airplane airplane5">✈</div>
 """, unsafe_allow_html=True)
 
 # ================================
