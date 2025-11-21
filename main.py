@@ -458,8 +458,8 @@ with tab1:
     if not filtered_df.empty:
         # Définir les couleurs par statut
         status_colors = {
-            '🛫 Montée': '#FFD700',     # Jaune
-            '🛬 Descente': '#FF0000',   # Rouge
+            '🛫 Montée': '#FF0000',     # Rouge
+            '🛬 Descente': '#000000',   # Noir
             '✈️ Croisière': '#0000FF',  # Bleu
             '🛬 Au sol': '#808080'      # Gris
         }
@@ -473,64 +473,62 @@ with tab1:
         lon_range = bbox[3] - bbox[2]
         max_range = max(lat_range, lon_range)
 
-        # Formule pour convertir la plage en niveau de zoom Folium
+        # Formule pour convertir la plage en niveau de zoom
         if max_range > 100:
-            zoom_level = 2
+            zoom_level = 1
         elif max_range > 50:
-            zoom_level = 3
+            zoom_level = 2
         elif max_range > 20:
-            zoom_level = 4
+            zoom_level = 3
         elif max_range > 10:
-            zoom_level = 5
+            zoom_level = 4
         else:
-            zoom_level = 7
+            zoom_level = 6
 
-        # Créer la carte Folium (beaucoup plus rapide avec icônes personnalisées)
-        m = folium.Map(
-            location=[center_lat, center_lon],
-            zoom_start=zoom_level,
-            tiles='OpenStreetMap',
-            prefer_canvas=True
+        # Créer la carte Plotly Scattermapbox (RAPIDE et FIABLE)
+        fig = go.Figure()
+
+        # Ajouter les avions par statut
+        for status in filtered_df['status'].unique():
+            df_status = filtered_df[filtered_df['status'] == status]
+
+            fig.add_trace(go.Scattermapbox(
+                lon=df_status['lon'],
+                lat=df_status['lat'],
+                mode='markers',
+                name=status,
+                marker=dict(
+                    size=5,  # Petits points
+                    color=status_colors.get(status, '#0000FF'),
+                    opacity=0.9
+                ),
+                text=df_status.apply(lambda row:
+                    f"<b>{row['callsign']}</b><br>" +
+                    f"Pays: {row['origin_country']}<br>" +
+                    f"Alt: {row['geo_altitude_ft']:.0f} ft<br>" +
+                    f"Vitesse: {row['velocity_knots']:.0f} kts<br>" +
+                    f"Statut: {row['status']}", axis=1
+                ),
+                hovertemplate='%{text}<extra></extra>'
+            ))
+
+        fig.update_layout(
+            mapbox=dict(
+                style="open-street-map",
+                center=dict(lat=center_lat, lon=center_lon),
+                zoom=zoom_level
+            ),
+            height=700,
+            margin={"r":0,"t":0,"l":0,"b":0},
+            showlegend=True,
+            hovermode='closest'
         )
 
-        # Lire et encoder le SVG
-        with open('2081280.svg', 'r') as f:
-            svg_content = f.read()
-
-        # Ajouter chaque avion comme marqueur avec icône SVG
-        for _, row in filtered_df.iterrows():
-            # Modifier la couleur du SVG selon le statut
-            color = status_colors.get(row['status'], '#0000FF')
-            svg_colored = svg_content.replace('fill="#000000"', f'fill="{color}"')
-
-            # Encoder en base64
-            svg_b64 = base64.b64encode(svg_colored.encode()).decode()
-
-            # Créer l'icône personnalisée
-            icon_html = f'''
-            <div style="transform: rotate({row["true_track"] if pd.notna(row["true_track"]) else 0}deg);">
-                <img src="data:image/svg+xml;base64,{svg_b64}" width="20" height="20">
-            </div>
-            '''
-
-            # Popup avec infos du vol
-            popup_text = f"""
-            <b>{row['callsign']}</b><br>
-            Pays: {row['origin_country']}<br>
-            Altitude: {row['geo_altitude_ft']:.0f} ft<br>
-            Vitesse: {row['velocity_knots']:.0f} kts<br>
-            Cap: {row['heading']}<br>
-            Statut: {row['status']}
-            """
-
-            folium.Marker(
-                location=[row['lat'], row['lon']],
-                popup=folium.Popup(popup_text, max_width=300),
-                icon=folium.DivIcon(html=icon_html)
-            ).add_to(m)
-
-        # Afficher la carte dans Streamlit
-        st_folium(m, width=None, height=700, key="flight_map")
+        st.plotly_chart(fig, use_container_width=True, config={
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'displaylogo': False
+        })
 
     else:
         st.info("Aucun vol ne correspond aux filtres sélectionnés")
