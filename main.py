@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import time
 import requests
 from datetime import datetime, timedelta
@@ -290,12 +291,15 @@ def fetch_flights(bbox, include_ground=False):
         
         # Statut de vol
         df['status'] = df.apply(lambda row: get_flight_status(row), axis=1)
-        
+
+        # Compagnie aérienne
+        df['airline'] = df['callsign'].apply(get_airline_from_callsign)
+
         df = df.rename(columns={'latitude': 'lat', 'longitude': 'lon'})
-        
+
         st.session_state.flights_data = df
         st.session_state.last_fetch = datetime.now()
-        
+
         return df, None
         
     except Exception as e:
@@ -320,6 +324,53 @@ def get_flight_status(row):
         elif vr < -1:
             return '🛬 Descente'
     return '✈️ Croisière'
+
+def get_airline_from_callsign(callsign):
+    """Extraire la compagnie aérienne du callsign"""
+    if pd.isna(callsign) or callsign == 'N/A':
+        return 'Inconnu'
+
+    # Dictionnaire des codes IATA/ICAO communs
+    airline_codes = {
+        'AFR': 'Air France', 'BAW': 'British Airways', 'DLH': 'Lufthansa',
+        'UAE': 'Emirates', 'QTR': 'Qatar Airways', 'SIA': 'Singapore Airlines',
+        'AAL': 'American Airlines', 'UAL': 'United Airlines', 'DAL': 'Delta',
+        'RYR': 'Ryanair', 'EZY': 'easyJet', 'WZZ': 'Wizz Air',
+        'THY': 'Turkish Airlines', 'AIC': 'Air India', 'CCA': 'Air China',
+        'CSN': 'China Southern', 'JAL': 'Japan Airlines', 'ANA': 'All Nippon',
+        'KLM': 'KLM', 'IBE': 'Iberia', 'SWR': 'Swiss',
+        'ACA': 'Air Canada', 'QFA': 'Qantas', 'ETH': 'Ethiopian Airlines'
+    }
+
+    # Extraire les 3 premières lettres du callsign
+    code = str(callsign).strip()[:3].upper()
+    return airline_codes.get(code, code)
+
+def fetch_flight_track(icao24, timestamp):
+    """Récupérer la trajectoire d'un vol spécifique"""
+    token, error = get_oauth_token()
+    if error:
+        return None, f"Erreur d'authentification: {error}"
+
+    try:
+        response = requests.get(
+            OPENSKY_TRACK_URL,
+            params={'icao24': icao24, 'time': int(timestamp)},
+            headers={'Authorization': f'Bearer {token}'},
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if not data or 'path' not in data:
+            return None, "Aucune trajectoire disponible"
+
+        # Convertir en DataFrame
+        track_df = pd.DataFrame(data['path'], columns=['time', 'lat', 'lon', 'baro_altitude', 'true_track', 'on_ground'])
+        return track_df, None
+
+    except Exception as e:
+        return None, f"Erreur: {str(e)}"
 
 # ================================
 # HEADER
@@ -368,7 +419,14 @@ with st.sidebar:
         selected_country = st.selectbox("Pays d'origine", countries)
     else:
         selected_country = 'Tous'
-    
+
+    # Compagnies aériennes
+    if st.session_state.flights_data is not None:
+        airlines = ['Toutes'] + sorted(st.session_state.flights_data['airline'].unique().tolist())
+        selected_airline = st.selectbox("Compagnie aérienne", airlines)
+    else:
+        selected_airline = 'Toutes'
+
     st.divider()
     
     # Contrôles de rafraîchissement
@@ -422,6 +480,9 @@ filtered_df = filtered_df[
 if selected_country != 'Tous':
     filtered_df = filtered_df[filtered_df['origin_country'] == selected_country]
 
+if selected_airline != 'Toutes':
+    filtered_df = filtered_df[filtered_df['airline'] == selected_airline]
+
 # ================================
 # MÉTRIQUES PRINCIPALES
 # ================================
@@ -471,9 +532,11 @@ st.divider()
 # ================================
 # ONGLETS PRINCIPAUX
 # ================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🗺️ Carte Interactive",
     "📊 Analyses",
+    "🔥 Heatmap Trafic",
+    "✈️ Compagnies",
     "📋 Liste des Vols",
     "🔍 Détails Vol",
     "🌐 Statistiques Globales"
@@ -648,8 +711,364 @@ with tab2:
     fig_heatmap.update_layout(height=400)
     st.plotly_chart(fig_heatmap, use_container_width=True)
 
-# ============ ONGLET 3: LISTE DES VOLS ============
+# ============ ONGLET 3: HEATMAP TRAFIC ============
 with tab3:
+    st.subheader("🔥 Heatmap de densité du trafic aérien")
+
+    if not filtered_df.empty:
+        st.markdown("""
+        Cette visualisation montre la concentration géographique du trafic aérien en temps réel.
+        Les zones rouges indiquent une forte densité de vols.
+        """)
+
+        # Créer une heatmap de densité
+        fig_density = go.Figure()
+
+        fig_density.add_trace(go.Densitymapbox(
+            lon=filtered_df['lon'],
+            lat=filtered_df['lat'],
+            z=[1] * len(filtered_df),  # Poids égal pour chaque vol
+            radius=15,
+            colorscale=[
+                [0, 'rgba(59, 130, 246, 0)'],      # Bleu transparent
+                [0.2, 'rgba(59, 130, 246, 0.3)'],  # Bleu clair
+                [0.4, 'rgba(34, 197, 94, 0.5)'],   # Vert
+                [0.6, 'rgba(234, 179, 8, 0.7)'],   # Jaune
+                [0.8, 'rgba(249, 115, 22, 0.9)'],  # Orange
+                [1, 'rgba(239, 68, 68, 1)']        # Rouge vif
+            ],
+            showscale=True,
+            colorbar=dict(
+                title="Densité",
+                thickness=15,
+                len=0.7
+            ),
+            hovertemplate='Densité de trafic<extra></extra>'
+        ))
+
+        # Calculer le centre de la carte
+        center_lat = filtered_df['lat'].median()
+        center_lon = filtered_df['lon'].median()
+
+        fig_density.update_layout(
+            mapbox=dict(
+                style="open-street-map",
+                center=dict(lat=center_lat, lon=center_lon),
+                zoom=3,
+                bounds=dict(west=-180, east=180, south=-85, north=85)
+            ),
+            height=700,
+            margin={"r":0,"t":0,"l":0,"b":0},
+            hovermode='closest'
+        )
+
+        st.plotly_chart(fig_density, use_container_width=True, config={
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'displaylogo': False
+        })
+
+        # Statistiques de densité
+        st.markdown("### 📊 Statistiques de concentration")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        # Calculer les zones avec le plus de trafic
+        from scipy.stats import gaussian_kde
+
+        # Diviser le monde en grilles
+        lat_bins = 36  # 5 degrés par bin
+        lon_bins = 72  # 5 degrés par bin
+
+        lat_edges = np.linspace(-90, 90, lat_bins + 1)
+        lon_edges = np.linspace(-180, 180, lon_bins + 1)
+
+        # Compter les vols par zone
+        filtered_df['lat_bin'] = pd.cut(filtered_df['lat'], bins=lat_edges, labels=False)
+        filtered_df['lon_bin'] = pd.cut(filtered_df['lon'], bins=lon_edges, labels=False)
+
+        zone_counts = filtered_df.groupby(['lat_bin', 'lon_bin']).size().reset_index(name='count')
+
+        max_zone = zone_counts.loc[zone_counts['count'].idxmax()]
+        max_zone_lat = (lat_edges[int(max_zone['lat_bin'])] + lat_edges[int(max_zone['lat_bin']) + 1]) / 2
+        max_zone_lon = (lon_edges[int(max_zone['lon_bin'])] + lon_edges[int(max_zone['lon_bin']) + 1]) / 2
+
+        with col1:
+            st.metric("🎯 Zone la plus dense", f"{max_zone['count']} vols")
+
+        with col2:
+            st.metric("📍 Latitude zone max", f"{max_zone_lat:.1f}°")
+
+        with col3:
+            st.metric("📍 Longitude zone max", f"{max_zone_lon:.1f}°")
+
+        with col4:
+            # Calculer la dispersion géographique
+            dispersion = filtered_df[['lat', 'lon']].std().mean()
+            st.metric("📏 Dispersion", f"{dispersion:.1f}°")
+
+        # Top 10 zones les plus denses
+        st.markdown("### 🏆 Top 10 zones de trafic intense")
+
+        top_zones = zone_counts.nlargest(10, 'count').copy()
+        top_zones['lat_center'] = top_zones['lat_bin'].apply(lambda x: (lat_edges[int(x)] + lat_edges[int(x) + 1]) / 2)
+        top_zones['lon_center'] = top_zones['lon_bin'].apply(lambda x: (lon_edges[int(x)] + lon_edges[int(x) + 1]) / 2)
+
+        display_zones = pd.DataFrame({
+            'Rang': range(1, len(top_zones) + 1),
+            'Nombre de vols': top_zones['count'].values,
+            'Latitude': [f"{lat:.1f}°" for lat in top_zones['lat_center'].values],
+            'Longitude': [f"{lon:.1f}°" for lon in top_zones['lon_center'].values]
+        })
+
+        st.dataframe(display_zones, use_container_width=True, hide_index=True)
+
+    else:
+        st.info("Aucune donnée disponible pour la heatmap")
+
+# ============ ONGLET 4: COMPAGNIES AÉRIENNES ============
+with tab4:
+    st.subheader("✈️ Analyse par compagnie aérienne")
+
+    if not filtered_df.empty:
+        # Compter les vols par compagnie
+        airline_counts = filtered_df['airline'].value_counts().reset_index()
+        airline_counts.columns = ['Compagnie', 'Nombre de vols']
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.markdown("### 📊 Top 15 compagnies aériennes")
+
+            top_15_airlines = airline_counts.head(15)
+
+            fig_airlines = px.bar(
+                top_15_airlines,
+                x='Nombre de vols',
+                y='Compagnie',
+                orientation='h',
+                title="Compagnies avec le plus de vols actifs",
+                labels={'Nombre de vols': 'Vols actifs', 'Compagnie': 'Compagnie aérienne'},
+                color='Nombre de vols',
+                color_continuous_scale='Blues'
+            )
+            fig_airlines.update_layout(
+                showlegend=False,
+                height=500,
+                yaxis={'categoryorder': 'total ascending'}
+            )
+            st.plotly_chart(fig_airlines, use_container_width=True)
+
+        with col2:
+            st.markdown("### 🥇 Statistiques")
+
+            total_airlines = filtered_df['airline'].nunique()
+            st.metric("Nombre de compagnies", total_airlines)
+
+            top_airline = airline_counts.iloc[0]
+            st.markdown(f"""
+            <div class="stat-box">
+                <h4>👑 Compagnie #1</h4>
+                <p><b>{top_airline['Compagnie']}</b></p>
+                <p>{top_airline['Nombre de vols']} vols actifs</p>
+                <p>{(top_airline['Nombre de vols'] / len(filtered_df) * 100):.1f}% du trafic</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Compagnie la plus rapide en moyenne
+            avg_speed_by_airline = filtered_df.groupby('airline')['velocity_knots'].mean().reset_index()
+            avg_speed_by_airline.columns = ['Compagnie', 'Vitesse moyenne']
+            fastest_airline = avg_speed_by_airline.loc[avg_speed_by_airline['Vitesse moyenne'].idxmax()]
+
+            st.markdown(f"""
+            <div class="stat-box">
+                <h4>🚀 Plus rapide (moyenne)</h4>
+                <p><b>{fastest_airline['Compagnie']}</b></p>
+                <p>{fastest_airline['Vitesse moyenne']:.0f} knots</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Compagnie qui vole le plus haut en moyenne
+            avg_alt_by_airline = filtered_df.groupby('airline')['geo_altitude_ft'].mean().reset_index()
+            avg_alt_by_airline.columns = ['Compagnie', 'Altitude moyenne']
+            highest_airline = avg_alt_by_airline.loc[avg_alt_by_airline['Altitude moyenne'].idxmax()]
+
+            st.markdown(f"""
+            <div class="stat-box">
+                <h4>⛰️ Plus haut (moyenne)</h4>
+                <p><b>{highest_airline['Compagnie']}</b></p>
+                <p>{highest_airline['Altitude moyenne']:.0f} ft</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Graphique en camembert
+        st.markdown("### 🥧 Répartition du trafic")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Top 10 + Autres
+            top_10_airlines = airline_counts.head(10)
+            others_count = airline_counts.iloc[10:]['Nombre de vols'].sum()
+
+            if others_count > 0:
+                pie_data = pd.concat([
+                    top_10_airlines,
+                    pd.DataFrame({'Compagnie': ['Autres'], 'Nombre de vols': [others_count]})
+                ])
+            else:
+                pie_data = top_10_airlines
+
+            fig_pie = px.pie(
+                pie_data,
+                values='Nombre de vols',
+                names='Compagnie',
+                title="Part de marché (Top 10)",
+                hole=0.4
+            )
+            fig_pie.update_layout(height=400)
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        with col2:
+            # Statut des vols par compagnie (pour les top 5)
+            top_5_airlines = airline_counts.head(5)['Compagnie'].tolist()
+
+            status_by_airline = filtered_df[filtered_df['airline'].isin(top_5_airlines)].groupby(
+                ['airline', 'status']
+            ).size().reset_index(name='count')
+
+            fig_status = px.bar(
+                status_by_airline,
+                x='airline',
+                y='count',
+                color='status',
+                title="Statut des vols (Top 5 compagnies)",
+                labels={'airline': 'Compagnie', 'count': 'Nombre de vols', 'status': 'Statut'},
+                barmode='stack'
+            )
+            fig_status.update_layout(height=400)
+            st.plotly_chart(fig_status, use_container_width=True)
+
+        # Tableau détaillé
+        st.markdown("### 📋 Tableau détaillé par compagnie")
+
+        detailed_stats = filtered_df.groupby('airline').agg({
+            'icao24': 'count',
+            'velocity_knots': 'mean',
+            'geo_altitude_ft': 'mean',
+            'origin_country': lambda x: x.mode()[0] if len(x.mode()) > 0 else 'N/A'
+        }).reset_index()
+
+        detailed_stats.columns = [
+            'Compagnie',
+            'Nombre de vols',
+            'Vitesse moyenne (kts)',
+            'Altitude moyenne (ft)',
+            'Pays principal'
+        ]
+
+        detailed_stats = detailed_stats.sort_values('Nombre de vols', ascending=False)
+
+        st.dataframe(
+            detailed_stats,
+            column_config={
+                'Compagnie': st.column_config.TextColumn('Compagnie', width='medium'),
+                'Nombre de vols': st.column_config.NumberColumn('Vols', format='%d'),
+                'Vitesse moyenne (kts)': st.column_config.NumberColumn('Vitesse moy.', format='%.0f kts'),
+                'Altitude moyenne (ft)': st.column_config.NumberColumn('Altitude moy.', format='%.0f ft'),
+                'Pays principal': st.column_config.TextColumn('Pays', width='medium'),
+            },
+            use_container_width=True,
+            hide_index=True,
+            height=400
+        )
+
+        # Sélection d'une compagnie spécifique
+        st.markdown("### 🔍 Détails d'une compagnie")
+
+        selected_airline = st.selectbox(
+            "Choisir une compagnie",
+            options=sorted(filtered_df['airline'].unique())
+        )
+
+        if selected_airline:
+            airline_flights = filtered_df[filtered_df['airline'] == selected_airline]
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("✈️ Vols actifs", len(airline_flights))
+
+            with col2:
+                st.metric("⚡ Vitesse moy.", f"{airline_flights['velocity_knots'].mean():.0f} kts")
+
+            with col3:
+                st.metric("📏 Altitude moy.", f"{airline_flights['geo_altitude_ft'].mean():.0f} ft")
+
+            with col4:
+                st.metric("🌍 Pays", airline_flights['origin_country'].mode()[0] if len(airline_flights) > 0 else 'N/A')
+
+            # Carte des vols de cette compagnie
+            st.markdown(f"#### 🗺️ Vols de {selected_airline}")
+
+            fig_airline_map = go.Figure()
+
+            status_colors = {
+                '🛫 Montée': '#FF0000',
+                '🛬 Descente': '#000000',
+                '✈️ Croisière': '#0000FF',
+                '🛬 Au sol': '#808080'
+            }
+
+            for status in airline_flights['status'].unique():
+                df_status = airline_flights[airline_flights['status'] == status]
+                fig_airline_map.add_trace(go.Scattermapbox(
+                    lon=df_status['lon'],
+                    lat=df_status['lat'],
+                    mode='markers',
+                    name=status,
+                    marker=dict(
+                        size=8,
+                        color=status_colors.get(status, '#0000FF'),
+                        opacity=0.9
+                    ),
+                    text=df_status.apply(lambda row: f"""
+                    <b>{row['callsign']}</b><br>
+                    Altitude: {row['geo_altitude_ft']:.0f} ft<br>
+                    Vitesse: {row['velocity_knots']:.0f} kts<br>
+                    Direction: {row['heading']}<br>
+                    Pays: {row['origin_country']}
+                    """, axis=1),
+                    hovertemplate='%{text}<extra></extra>'
+                ))
+
+            center_lat = airline_flights['lat'].median()
+            center_lon = airline_flights['lon'].median()
+
+            fig_airline_map.update_layout(
+                mapbox=dict(
+                    style="open-street-map",
+                    center=dict(lat=center_lat, lon=center_lon),
+                    zoom=3,
+                    bounds=dict(west=-180, east=180, south=-85, north=85)
+                ),
+                height=500,
+                margin={"r":0,"t":0,"l":0,"b":0},
+                showlegend=True,
+                hovermode='closest'
+            )
+
+            st.plotly_chart(fig_airline_map, use_container_width=True, config={
+                'scrollZoom': True,
+                'displayModeBar': True,
+                'displaylogo': False
+            })
+
+    else:
+        st.info("Aucune donnée disponible pour l'analyse des compagnies")
+
+# ============ ONGLET 5: LISTE DES VOLS ============
+with tab5:
     st.subheader("📋 Liste détaillée des vols")
     
     # Options d'affichage
