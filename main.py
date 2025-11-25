@@ -629,6 +629,16 @@ with tab1:
             height=700,
             margin={"r":0,"t":0,"l":0,"b":0},
             showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=0.02,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(255, 255, 255, 0.9)",
+                bordercolor="rgba(0, 0, 0, 0.2)",
+                borderwidth=1
+            ),
             hovermode='closest'
         )
 
