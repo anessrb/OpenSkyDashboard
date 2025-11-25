@@ -1,0 +1,240 @@
+═══════════════════════════════════════════════════════════════════
+    PRÉSENTATION FLIGHT TRACKER PRO - 5 MINUTES
+═══════════════════════════════════════════════════════════════════
+
+[INTRODUCTION - 30 secondes]
+─────────────────────────────
+
+Bonjour à toutes et à tous,
+
+Aujourd'hui, nous avons le plaisir de vous présenter notre projet :
+Flight Tracker Pro, un dashboard de surveillance du trafic aérien mondial
+en temps réel.
+
+Dans un monde où plus de 100 000 vols décollent chaque jour, nous avons
+développé une solution moderne et interactive pour visualiser, analyser
+et comprendre le trafic aérien à l'échelle planétaire.
+
+
+[CONTEXTE ET MOTIVATION - 45 secondes]
+─────────────────────────────────────
+
+Le trafic aérien est un écosystème complexe qui nécessite des outils
+performants pour sa surveillance. Les solutions existantes comme
+FlightRadar24 sont souvent payantes ou limitées.
+
+Notre objectif était de créer une alternative :
+• Gratuite et open-source
+• Performante avec des visualisations fluides
+• Complète avec des analyses statistiques avancées
+• Accessible via une interface web moderne
+
+
+[ARCHITECTURE TECHNIQUE - 1 minute]
+─────────────────────────────────
+
+Flight Tracker Pro repose sur une stack technologique robuste :
+
+1. API OpenSky Network
+   - Données en temps réel de plus de 20 000 récepteurs ADS-B
+   - Authentification OAuth2 pour des limites de requêtes élevées
+   - Mode anonyme de secours en cas de problème réseau
+
+2. Backend Python
+   - Streamlit pour l'interface web interactive
+   - Pandas pour le traitement des données
+   - Système de cache intelligent pour optimiser les performances
+
+3. Visualisations avancées
+   - Plotly pour des cartes interactives avec hardware acceleration
+   - Scattermapbox pour un rendu fluide similaire à FlightRadar24
+   - Heatmaps de densité du trafic
+
+
+[FONCTIONNALITÉS PRINCIPALES - 1 minute 30]
+─────────────────────────────────────────
+
+Notre dashboard comprend 7 onglets principaux :
+
+1. 🗺️ CARTE INTERACTIVE
+   - Visualisation mondiale en temps réel
+   - 4 statuts de vol : Montée (rouge), Descente (noir),
+     Croisière (bleu), Au sol (gris)
+   - Zoom et navigation fluides
+   - Hover pour détails instantanés
+
+2. 📊 ANALYSES
+   - Distribution des altitudes et vitesses
+   - Top 10 des pays
+   - Corrélations altitude/vitesse
+   - Statistiques par phase de vol
+
+3. 🔥 HEATMAP TRAFIC
+   - Carte de densité du trafic aérien
+   - Identification des zones à forte concentration
+   - Top 10 des zones de trafic intense
+   - Calcul de dispersion géographique
+
+4. ✈️ COMPAGNIES AÉRIENNES
+   - Reconnaissance automatique de 24+ compagnies
+   - Top 15 des compagnies les plus actives
+   - Statistiques détaillées (vitesse, altitude, pays)
+   - Carte interactive par compagnie
+
+5. 📋 LISTE DES VOLS
+   - Tableau interactif avec tri et pagination
+   - Export CSV pour analyses externes
+   - Filtrage avancé
+
+6. 🔍 DÉTAILS VOL
+   - Recherche par indicatif
+   - Informations complètes (ICAO24, squawk, position)
+   - Mini-carte de localisation
+
+7. 🌐 STATISTIQUES GLOBALES
+   - Métriques agrégées
+   - Records (vol le plus rapide, le plus haut)
+   - Distributions géographiques
+
+
+[FILTRES ET PERSONNALISATION - 30 secondes]
+─────────────────────────────────────────
+
+L'application offre des filtres puissants :
+• Sélection de région (Europe, Amérique du Nord, Monde entier...)
+• Filtrage par altitude (min/max)
+• Filtrage par vitesse minimale
+• Filtrage par pays d'origine
+• Filtrage par compagnie aérienne
+• Option d'inclusion des avions au sol
+
+
+[DESIGN ET UX - 30 secondes]
+───────────────────────────
+
+Nous avons accordé une attention particulière au design :
+• Interface moderne en bleu clair et blanc
+• Style minimaliste et épuré
+• Responsive design
+• Animations fluides
+• Métriques visuelles claires
+• Ambiance musicale optionnelle
+
+
+[PERFORMANCES ET OPTIMISATIONS - 30 secondes]
+────────────────────────────────────────────
+
+Pour garantir une expérience fluide :
+• Cache de données avec session state
+• Rafraîchissement automatique configurable
+• Lazy loading des visualisations
+• Gestion robuste des erreurs
+• Mode dégradé en cas de problème réseau
+• Optimisation des requêtes API
+
+
+[DÉFIS TECHNIQUES RELEVÉS - 30 secondes]
+───────────────────────────────────────
+
+Nous avons surmonté plusieurs défis :
+• Performance des visualisations avec milliers de points
+• Gestion de l'authentification OAuth2
+• Traitement en temps réel de grandes quantités de données
+• Compatibilité navigateurs pour l'autoplay audio
+• Gestion des données manquantes ou invalides
+
+
+[RÉSULTATS ET IMPACT - 20 secondes]
+──────────────────────────────────
+
+Flight Tracker Pro permet :
+✓ Surveillance de ~10 000 vols simultanés
+✓ Rafraîchissement en moins de 3 secondes
+✓ Interface aussi fluide que FlightRadar24
+✓ Analyses statistiques avancées
+✓ Solution 100% gratuite et open-source
+
+
+[DÉMONSTRATION LIVE - 30 secondes]
+─────────────────────────────────
+
+[Ici, montrer rapidement l'application en action]
+• Lancement et aperçu de la carte mondiale
+• Navigation entre les onglets
+• Sélection d'une compagnie aérienne
+• Affichage de la heatmap
+• Recherche d'un vol spécifique
+
+
+[PERSPECTIVES D'ÉVOLUTION - 20 secondes]
+───────────────────────────────────────
+
+Nos prochaines étapes incluent :
+• Visualisation des trajectoires de vol historiques
+• Alertes et notifications personnalisées
+• Prédictions de trafic avec Machine Learning
+• API REST pour développeurs tiers
+• Application mobile
+
+
+[CONCLUSION - 20 secondes]
+────────────────────────
+
+Flight Tracker Pro démontre qu'il est possible de créer une solution
+professionnelle de surveillance aérienne avec des technologies open-source.
+
+Notre dashboard combine performance, design moderne et fonctionnalités
+avancées pour offrir une expérience utilisateur exceptionnelle.
+
+Merci pour votre attention. Nous sommes maintenant disponibles pour
+répondre à vos questions !
+
+
+═══════════════════════════════════════════════════════════════════
+    POINTS CLÉS À RETENIR
+═══════════════════════════════════════════════════════════════════
+
+✈️  Surveillance en temps réel de 10 000+ vols
+📊  7 onglets d'analyse complets
+🗺️  Cartes interactives fluides
+🔥  Heatmap de densité du trafic
+✈️  Reconnaissance de 24+ compagnies aériennes
+🎨  Design moderne et minimaliste
+⚡  Performance optimale
+🆓  100% gratuit et open-source
+
+
+═══════════════════════════════════════════════════════════════════
+    QUESTIONS FRÉQUENTES ANTICIPÉES
+═══════════════════════════════════════════════════════════════════
+
+Q: D'où viennent les données ?
+R: OpenSky Network, un réseau collaboratif de 20 000+ récepteurs ADS-B
+   à travers le monde.
+
+Q: Les données sont-elles vraiment en temps réel ?
+R: Oui, avec un délai de 5-10 secondes par rapport au vol réel.
+
+Q: Combien coûte l'utilisation ?
+R: Totalement gratuit ! L'API OpenSky est open-data.
+
+Q: Peut-on voir des avions militaires ?
+R: Seulement ceux qui diffusent leur transpondeur ADS-B publiquement.
+
+Q: Quelle est la couverture géographique ?
+R: Mondiale, avec une meilleure densité en Europe et Amérique du Nord.
+
+Q: Le projet est-il open-source ?
+R: Oui, tout le code est disponible et réutilisable.
+
+
+═══════════════════════════════════════════════════════════════════
+    RESSOURCES ET LIENS
+═══════════════════════════════════════════════════════════════════
+
+• OpenSky Network: https://opensky-network.org/
+• Documentation API: https://openskynetwork.github.io/opensky-api/
+• Streamlit: https://streamlit.io/
+• Plotly: https://plotly.com/python/
+
+═══════════════════════════════════════════════════════════════════

@@ -209,18 +209,21 @@ def get_oauth_token():
                 "client_secret": CLIENT_SECRET
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
+            timeout=30  # Augmenté à 30 secondes
         )
         response.raise_for_status()
-        
+
         token_data = response.json()
         access_token = token_data.get('access_token')
         expires_in = token_data.get('expires_in', 1800)
-        
+
         st.session_state.access_token = access_token
         st.session_state.token_expiry = datetime.now() + timedelta(seconds=expires_in - 60)
-        
+
         return access_token, None
+    except requests.exceptions.Timeout:
+        # En cas de timeout, essayer sans authentification
+        return None, "TIMEOUT"
     except Exception as e:
         return None, str(e)
 
@@ -230,22 +233,29 @@ def get_oauth_token():
 def fetch_flights(bbox, include_ground=False):
     """Récupérer les vols en temps réel"""
     token, error = get_oauth_token()
-    if error:
+
+    # Si timeout, essayer sans authentification (mode anonyme)
+    use_auth = True
+    if error == "TIMEOUT":
+        st.warning("⚠️ Serveur d'authentification injoignable, utilisation du mode anonyme (limité)")
+        use_auth = False
+    elif error:
         return None, f"Erreur d'authentification: {error}"
-    
+
     params = {
         'lamin': bbox[0],
         'lomin': bbox[2],
         'lamax': bbox[1],
         'lomax': bbox[3]
     }
-    
+
     try:
+        headers = {'Authorization': f'Bearer {token}'} if use_auth and token else {}
         response = requests.get(
             OPENSKY_BASE_URL,
             params=params,
-            headers={'Authorization': f'Bearer {token}'},
-            timeout=15
+            headers=headers,
+            timeout=30
         )
         response.raise_for_status()
         
@@ -414,16 +424,16 @@ with st.sidebar:
     min_speed = st.slider("Vitesse min (knots)", 0, 600, 0, 10)
     
     # Pays
-    if st.session_state.flights_data is not None:
+    if st.session_state.flights_data is not None and 'origin_country' in st.session_state.flights_data.columns:
         countries = ['Tous'] + sorted(st.session_state.flights_data['origin_country'].unique().tolist())
         selected_country = st.selectbox("Pays d'origine", countries)
     else:
         selected_country = 'Tous'
 
     # Compagnies aériennes
-    if st.session_state.flights_data is not None:
+    if st.session_state.flights_data is not None and 'airline' in st.session_state.flights_data.columns:
         airlines = ['Toutes'] + sorted(st.session_state.flights_data['airline'].unique().tolist())
-        selected_airline = st.selectbox("Compagnie aérienne", airlines)
+        selected_airline = st.selectbox("Compagnie aérienne", airlines, key='airline_filter')
     else:
         selected_airline = 'Toutes'
 
@@ -986,83 +996,100 @@ with tab4:
         # Sélection d'une compagnie spécifique
         st.markdown("### 🔍 Détails d'une compagnie")
 
-        selected_airline = st.selectbox(
+        unique_airlines = sorted(filtered_df['airline'].unique().tolist())
+
+        selected_airline_detail = st.selectbox(
             "Choisir une compagnie",
-            options=sorted(filtered_df['airline'].unique())
+            options=unique_airlines,
+            key='airline_detail_selector'
         )
 
-        if selected_airline:
-            airline_flights = filtered_df[filtered_df['airline'] == selected_airline]
+        if selected_airline_detail:
+            airline_flights = filtered_df[filtered_df['airline'] == selected_airline_detail].copy()
 
-            col1, col2, col3, col4 = st.columns(4)
+            if len(airline_flights) == 0:
+                st.warning(f"Aucun vol trouvé pour {selected_airline_detail}")
+            else:
+                col1, col2, col3, col4 = st.columns(4)
 
-            with col1:
-                st.metric("✈️ Vols actifs", len(airline_flights))
+                with col1:
+                    st.metric("✈️ Vols actifs", len(airline_flights))
 
-            with col2:
-                st.metric("⚡ Vitesse moy.", f"{airline_flights['velocity_knots'].mean():.0f} kts")
+                with col2:
+                    avg_speed = airline_flights['velocity_knots'].mean()
+                    st.metric("⚡ Vitesse moy.", f"{avg_speed:.0f} kts" if pd.notna(avg_speed) else "N/A")
 
-            with col3:
-                st.metric("📏 Altitude moy.", f"{airline_flights['geo_altitude_ft'].mean():.0f} ft")
+                with col3:
+                    avg_alt = airline_flights['geo_altitude_ft'].mean()
+                    st.metric("📏 Altitude moy.", f"{avg_alt:.0f} ft" if pd.notna(avg_alt) else "N/A")
 
-            with col4:
-                st.metric("🌍 Pays", airline_flights['origin_country'].mode()[0] if len(airline_flights) > 0 else 'N/A')
+                with col4:
+                    country_mode = airline_flights['origin_country'].mode()
+                    country = country_mode[0] if len(country_mode) > 0 else 'N/A'
+                    st.metric("🌍 Pays", country)
 
-            # Carte des vols de cette compagnie
-            st.markdown(f"#### 🗺️ Vols de {selected_airline}")
+                # Carte des vols de cette compagnie
+                st.markdown(f"#### 🗺️ Vols de {selected_airline_detail}")
 
-            fig_airline_map = go.Figure()
+                # Vérifier qu'il y a des données valides pour la carte
+                valid_flights = airline_flights.dropna(subset=['lat', 'lon'])
 
-            status_colors = {
-                '🛫 Montée': '#FF0000',
-                '🛬 Descente': '#000000',
-                '✈️ Croisière': '#0000FF',
-                '🛬 Au sol': '#808080'
-            }
+                if len(valid_flights) == 0:
+                    st.warning("Pas de données de position valides pour cette compagnie")
+                else:
+                    fig_airline_map = go.Figure()
 
-            for status in airline_flights['status'].unique():
-                df_status = airline_flights[airline_flights['status'] == status]
-                fig_airline_map.add_trace(go.Scattermapbox(
-                    lon=df_status['lon'],
-                    lat=df_status['lat'],
-                    mode='markers',
-                    name=status,
-                    marker=dict(
-                        size=8,
-                        color=status_colors.get(status, '#0000FF'),
-                        opacity=0.9
-                    ),
-                    text=df_status.apply(lambda row: f"""
-                    <b>{row['callsign']}</b><br>
-                    Altitude: {row['geo_altitude_ft']:.0f} ft<br>
-                    Vitesse: {row['velocity_knots']:.0f} kts<br>
-                    Direction: {row['heading']}<br>
-                    Pays: {row['origin_country']}
-                    """, axis=1),
-                    hovertemplate='%{text}<extra></extra>'
-                ))
+                    status_colors = {
+                        '🛫 Montée': '#FF0000',
+                        '🛬 Descente': '#000000',
+                        '✈️ Croisière': '#0000FF',
+                        '🛬 Au sol': '#808080'
+                    }
 
-            center_lat = airline_flights['lat'].median()
-            center_lon = airline_flights['lon'].median()
+                    for status in valid_flights['status'].unique():
+                        df_status = valid_flights[valid_flights['status'] == status]
+                        if len(df_status) > 0:
+                            fig_airline_map.add_trace(go.Scattermapbox(
+                                lon=df_status['lon'],
+                                lat=df_status['lat'],
+                                mode='markers',
+                                name=status,
+                                marker=dict(
+                                    size=8,
+                                    color=status_colors.get(status, '#0000FF'),
+                                    opacity=0.9
+                                ),
+                                text=df_status.apply(lambda row: f"""
+                                <b>{row['callsign']}</b><br>
+                                Altitude: {row['geo_altitude_ft']:.0f} ft<br>
+                                Vitesse: {row['velocity_knots']:.0f} kts<br>
+                                Direction: {row['heading']}<br>
+                                Pays: {row['origin_country']}
+                                """, axis=1),
+                                hovertemplate='%{text}<extra></extra>'
+                            ))
 
-            fig_airline_map.update_layout(
-                mapbox=dict(
-                    style="open-street-map",
-                    center=dict(lat=center_lat, lon=center_lon),
-                    zoom=3,
-                    bounds=dict(west=-180, east=180, south=-85, north=85)
-                ),
-                height=500,
-                margin={"r":0,"t":0,"l":0,"b":0},
-                showlegend=True,
-                hovermode='closest'
-            )
+                    center_lat = valid_flights['lat'].median()
+                    center_lon = valid_flights['lon'].median()
 
-            st.plotly_chart(fig_airline_map, use_container_width=True, config={
-                'scrollZoom': True,
-                'displayModeBar': True,
-                'displaylogo': False
-            })
+                    fig_airline_map.update_layout(
+                        mapbox=dict(
+                            style="open-street-map",
+                            center=dict(lat=center_lat, lon=center_lon),
+                            zoom=3,
+                            bounds=dict(west=-180, east=180, south=-85, north=85)
+                        ),
+                        height=500,
+                        margin={"r":0,"t":0,"l":0,"b":0},
+                        showlegend=True,
+                        hovermode='closest'
+                    )
+
+                    st.plotly_chart(fig_airline_map, use_container_width=True, config={
+                        'scrollZoom': True,
+                        'displayModeBar': True,
+                        'displaylogo': False
+                    })
 
     else:
         st.info("Aucune donnée disponible pour l'analyse des compagnies")
@@ -1135,8 +1162,8 @@ with tab5:
         mime="text/csv"
     )
 
-# ============ ONGLET 4: DÉTAILS VOL ============
-with tab4:
+# ============ ONGLET 6: DÉTAILS VOL ============
+with tab6:
     st.subheader("🔍 Recherche et détails d'un vol")
     
     # Recherche
@@ -1193,8 +1220,8 @@ with tab4:
         for idx, flight in sample_flights.iterrows():
             st.write(f"• {flight['callsign']} ({flight['origin_country']}) - {flight['status']}")
 
-# ============ ONGLET 5: STATS GLOBALES ============
-with tab5:
+# ============ ONGLET 7: STATS GLOBALES ============
+with tab7:
     st.subheader("🌐 Statistiques globales")
     
     col1, col2 = st.columns([2, 1])
