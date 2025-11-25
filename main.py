@@ -781,54 +781,78 @@ with tab3:
         # Statistiques de densité
         st.markdown("### 📊 Statistiques de concentration")
 
+        st.info("💡 **Comment lire la heatmap**: Les zones rouges/orange indiquent une forte concentration de vols. "
+                "Les zones sont calculées sur des grilles de 2° x 2° (environ 200 km).")
+
         col1, col2, col3, col4 = st.columns(4)
 
-        # Calculer les zones avec le plus de trafic
-        from scipy.stats import gaussian_kde
-
-        # Diviser le monde en grilles
-        lat_bins = 36  # 5 degrés par bin
-        lon_bins = 72  # 5 degrés par bin
+        # Calculer les zones avec le plus de trafic (grilles plus petites)
+        lat_bins = 90   # 2 degrés par bin
+        lon_bins = 180  # 2 degrés par bin
 
         lat_edges = np.linspace(-90, 90, lat_bins + 1)
         lon_edges = np.linspace(-180, 180, lon_bins + 1)
 
         # Compter les vols par zone
-        filtered_df['lat_bin'] = pd.cut(filtered_df['lat'], bins=lat_edges, labels=False)
-        filtered_df['lon_bin'] = pd.cut(filtered_df['lon'], bins=lon_edges, labels=False)
+        df_temp = filtered_df.copy()
+        df_temp['lat_bin'] = pd.cut(df_temp['lat'], bins=lat_edges, labels=False)
+        df_temp['lon_bin'] = pd.cut(df_temp['lon'], bins=lon_edges, labels=False)
 
-        zone_counts = filtered_df.groupby(['lat_bin', 'lon_bin']).size().reset_index(name='count')
+        zone_counts = df_temp.groupby(['lat_bin', 'lon_bin']).size().reset_index(name='count')
 
-        max_zone = zone_counts.loc[zone_counts['count'].idxmax()]
-        max_zone_lat = (lat_edges[int(max_zone['lat_bin'])] + lat_edges[int(max_zone['lat_bin']) + 1]) / 2
-        max_zone_lon = (lon_edges[int(max_zone['lon_bin'])] + lon_edges[int(max_zone['lon_bin']) + 1]) / 2
+        if len(zone_counts) > 0:
+            max_zone = zone_counts.loc[zone_counts['count'].idxmax()]
+            max_zone_lat = (lat_edges[int(max_zone['lat_bin'])] + lat_edges[int(max_zone['lat_bin']) + 1]) / 2
+            max_zone_lon = (lon_edges[int(max_zone['lon_bin'])] + lon_edges[int(max_zone['lon_bin']) + 1]) / 2
 
-        with col1:
-            st.metric("🎯 Zone la plus dense", f"{max_zone['count']} vols")
+            with col1:
+                st.metric("🎯 Zone la plus dense", f"{int(max_zone['count'])} vols")
 
-        with col2:
-            st.metric("📍 Latitude zone max", f"{max_zone_lat:.1f}°")
+            with col2:
+                st.metric("📍 Centre lat.", f"{max_zone_lat:.1f}°")
 
-        with col3:
-            st.metric("📍 Longitude zone max", f"{max_zone_lon:.1f}°")
+            with col3:
+                st.metric("📍 Centre lon.", f"{max_zone_lon:.1f}°")
 
-        with col4:
-            # Calculer la dispersion géographique
-            dispersion = filtered_df[['lat', 'lon']].std().mean()
-            st.metric("📏 Dispersion", f"{dispersion:.1f}°")
+            with col4:
+                # Calculer la dispersion géographique (écart-type moyen)
+                dispersion = df_temp[['lat', 'lon']].std().mean()
+                st.metric("📏 Dispersion", f"{dispersion:.1f}°")
+
+            st.caption(f"💡 La zone la plus dense (lat: {max_zone_lat:.1f}°, lon: {max_zone_lon:.1f}°) "
+                      f"contient {int(max_zone['count'])} vols dans un carré de ~200 km de côté.")
 
         # Top 10 zones les plus denses
         st.markdown("### 🏆 Top 10 zones de trafic intense")
+        st.caption("📍 Chaque zone représente un carré d'environ 200 km x 200 km")
 
         top_zones = zone_counts.nlargest(10, 'count').copy()
         top_zones['lat_center'] = top_zones['lat_bin'].apply(lambda x: (lat_edges[int(x)] + lat_edges[int(x) + 1]) / 2)
         top_zones['lon_center'] = top_zones['lon_bin'].apply(lambda x: (lon_edges[int(x)] + lon_edges[int(x) + 1]) / 2)
 
+        # Ajouter une région approximative pour mieux comprendre
+        def get_region(lat, lon):
+            if 35 <= lat <= 55 and -10 <= lon <= 30:
+                return "🇪🇺 Europe"
+            elif 25 <= lat <= 50 and -125 <= lon <= -65:
+                return "🇺🇸 Amérique du Nord"
+            elif 30 <= lat <= 45 and 100 <= lon <= 145:
+                return "🇯🇵 Asie de l'Est"
+            elif -40 <= lat <= -10 and -80 <= lon <= -30:
+                return "🇧🇷 Amérique du Sud"
+            elif -45 <= lat <= -10 and 110 <= lon <= 155:
+                return "🇦🇺 Océanie"
+            elif 0 <= lat <= 35 and 40 <= lon <= 80:
+                return "🌍 Moyen-Orient"
+            else:
+                return "🌐 Autre"
+
         display_zones = pd.DataFrame({
             'Rang': range(1, len(top_zones) + 1),
-            'Nombre de vols': top_zones['count'].values,
-            'Latitude': [f"{lat:.1f}°" for lat in top_zones['lat_center'].values],
-            'Longitude': [f"{lon:.1f}°" for lon in top_zones['lon_center'].values]
+            'Vols': top_zones['count'].values,
+            'Centre Lat.': [f"{lat:.1f}°" for lat in top_zones['lat_center'].values],
+            'Centre Lon.': [f"{lon:.1f}°" for lon in top_zones['lon_center'].values],
+            'Région': [get_region(lat, lon) for lat, lon in zip(top_zones['lat_center'].values, top_zones['lon_center'].values)]
         })
 
         st.dataframe(display_zones, use_container_width=True, hide_index=True)
